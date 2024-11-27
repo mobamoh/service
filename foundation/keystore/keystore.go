@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path"
 	"strings"
 )
@@ -36,14 +35,11 @@ func New() *KeyStore {
 	}
 }
 
-// LoadByEnv is given an env variable to read. It assume a JSON document
-// will be provided with two fields, key and pem (private key). If the env var
-// does not exist, the function does not fail and returns the total number of
-// keys in the store.
-func (ks *KeyStore) LoadByEnv(env string) (int, error) {
-	document := os.Getenv(env)
+// LoadByJSON is given a JSON document read with two fields, key and pem
+// (private key).
+func (ks *KeyStore) LoadByJSON(document string) (int, error) {
 	if document == "" {
-		return len(ks.store), nil
+		return 0, nil
 	}
 
 	var d struct {

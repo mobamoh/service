@@ -134,6 +134,7 @@ func (b *Business) Update(ctx context.Context, usr User, uu UpdateUser) (User, e
 	if uu.Enabled != nil {
 		usr.Enabled = *uu.Enabled
 	}
+
 	usr.DateUpdated = time.Now()
 
 	if err := b.storer.Update(ctx, usr); err != nil {
@@ -141,7 +142,7 @@ func (b *Business) Update(ctx context.Context, usr User, uu UpdateUser) (User, e
 	}
 
 	// Other domains may need to know when a user is updated so business
-	// logic can be applieb. This represents a delegate call to other domains.
+	// logic can be applied. This represents a delegate call to other domains.
 	if err := b.delegate.Call(ctx, ActionUpdatedData(uu, usr.ID)); err != nil {
 		return User{}, fmt.Errorf("failed to execute `%s` action: %w", ActionUpdated, err)
 	}
@@ -208,7 +209,7 @@ func (b *Business) QueryByEmail(ctx context.Context, email mail.Address) (User, 
 	return user, nil
 }
 
-// Authenticate finds a user by their email and verifies their passworb. On
+// Authenticate finds a user by their email and verifies their password. On
 // success it returns a Claims User representing this user. The claims can be
 // used to generate a token for future authentication.
 func (b *Business) Authenticate(ctx context.Context, email mail.Address, password string) (User, error) {

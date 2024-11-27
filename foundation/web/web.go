@@ -76,7 +76,7 @@ func (a *App) EnableCORS(origins []string) {
 	a.origins = origins
 
 	handler := func(ctx context.Context, r *http.Request) Encoder {
-		return cors{Status: "OK"}
+		return nil
 	}
 	handler = wrapMiddleware([]MidFunc{a.corsHandler}, handler)
 
@@ -87,8 +87,21 @@ func (a *App) corsHandler(webHandler HandlerFunc) HandlerFunc {
 	h := func(ctx context.Context, r *http.Request) Encoder {
 		w := GetWriter(ctx)
 
+		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin
+		//
+		// Limiting the possible Access-Control-Allow-Origin values to a set of
+		// allowed origins requires code on the server side to check the value of
+		// the Origin request header, compare that to a list of allowed origins, and
+		// then if the Origin value is in the list, set the
+		// Access-Control-Allow-Origin value to the same value as the Origin.
+
+		reqOrigin := r.Header.Get("Origin")
 		for _, origin := range a.origins {
-			w.Header().Add("Access-Control-Allow-Origin", origin)
+			if origin == "*" || origin == reqOrigin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
 		}
 
 		w.Header().Set("Access-Control-Allow-Methods", "POST, PATCH, GET, OPTIONS, PUT, DELETE")
@@ -112,6 +125,7 @@ func (a *App) HandlerFuncNoMid(method string, group string, path string, handler
 
 		if err := Respond(ctx, w, resp); err != nil {
 			a.log(ctx, "web-respond", "ERROR", err)
+			return
 		}
 	}
 
@@ -140,10 +154,19 @@ func (a *App) HandlerFunc(method string, group string, path string, handlerFunc 
 
 		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(w.Header()))
 
+		reqOrigin := r.Header.Get("Origin")
+		for _, origin := range a.origins {
+			if origin == "*" || origin == reqOrigin {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
+
 		resp := handlerFunc(ctx, r)
 
 		if err := Respond(ctx, w, resp); err != nil {
 			a.log(ctx, "web-respond", "ERROR", err)
+			return
 		}
 	}
 
@@ -192,7 +215,7 @@ func (a *App) RawHandlerFunc(method string, group string, path string, rawHandle
 
 // FileServerReact starts a file server based on the specified file system and
 // directory inside that file system for a statically built react webapp.
-func (a *App) FileServerReact(static embed.FS, dir string) error {
+func (a *App) FileServerReact(static embed.FS, dir string, path string) error {
 	fileMatcher := regexp.MustCompile(`\.[a-zA-Z]*$`)
 
 	fSys, err := fs.Sub(static, dir)
@@ -200,12 +223,13 @@ func (a *App) FileServerReact(static embed.FS, dir string) error {
 		return fmt.Errorf("switching to static folder: %w", err)
 	}
 
-	fileServer := http.FileServer(http.FS(fSys))
+	fileServer := http.StripPrefix(path, http.FileServer(http.FS(fSys)))
 
 	h := func(w http.ResponseWriter, r *http.Request) {
 		if !fileMatcher.MatchString(r.URL.Path) {
 			p, err := static.ReadFile(fmt.Sprintf("%s/index.html", dir))
 			if err != nil {
+				a.log(context.Background(), "FileServerReact", "ERROR", err)
 				return
 			}
 
@@ -216,38 +240,22 @@ func (a *App) FileServerReact(static embed.FS, dir string) error {
 		fileServer.ServeHTTP(w, r)
 	}
 
-	a.mux.HandleFunc("/", h)
+	a.mux.HandleFunc(fmt.Sprintf("GET %s", path), h)
 
 	return nil
 }
 
 // FileServer starts a file server based on the specified file system and
 // directory inside that file system.
-func (a *App) FileServer(static embed.FS, dir string, notFoundHandler http.HandlerFunc) error {
+func (a *App) FileServer(static embed.FS, dir string, path string) error {
 	fSys, err := fs.Sub(static, dir)
 	if err != nil {
 		return fmt.Errorf("switching to static folder: %w", err)
 	}
 
-	fileServer := http.FileServer(http.FS(fSys))
+	fileServer := http.StripPrefix(path, http.FileServer(http.FS(fSys)))
 
-	h := func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path[1:]
-		if path == "" {
-			path = "index.html"
-		}
-
-		f, err := fSys.Open(path)
-		if err != nil {
-			notFoundHandler(w, r)
-			return
-		}
-		defer f.Close()
-
-		fileServer.ServeHTTP(w, r)
-	}
-
-	a.mux.HandleFunc("/", h)
+	a.mux.Handle(fmt.Sprintf("GET %s", path), fileServer)
 
 	return nil
 }

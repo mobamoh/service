@@ -7,8 +7,7 @@ import (
 	"github.com/ardanlabs/service/business/domain/vproductbus"
 )
 
-// QueryParams represents the set of possible query strings.
-type QueryParams struct {
+type queryParams struct {
 	Page     string
 	Rows     string
 	OrderBy  string
@@ -45,8 +44,8 @@ func toAppProduct(prd vproductbus.Product) Product {
 		ID:          prd.ID.String(),
 		UserID:      prd.UserID.String(),
 		Name:        prd.Name.String(),
-		Cost:        prd.Cost,
-		Quantity:    prd.Quantity,
+		Cost:        prd.Cost.Value(),
+		Quantity:    prd.Quantity.Value(),
 		DateCreated: prd.DateCreated.Format(time.RFC3339),
 		DateUpdated: prd.DateUpdated.Format(time.RFC3339),
 		UserName:    prd.UserName.String(),

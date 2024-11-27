@@ -1,14 +1,32 @@
 package productapp
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/ardanlabs/service/app/sdk/errs"
 	"github.com/ardanlabs/service/business/domain/productbus"
+	"github.com/ardanlabs/service/business/types/name"
 	"github.com/google/uuid"
 )
 
-func parseFilter(qp QueryParams) (productbus.QueryFilter, error) {
+func parseQueryParams(r *http.Request) queryParams {
+	values := r.URL.Query()
+
+	filter := queryParams{
+		Page:     values.Get("page"),
+		Rows:     values.Get("row"),
+		OrderBy:  values.Get("orderBy"),
+		ID:       values.Get("product_id"),
+		Name:     values.Get("name"),
+		Cost:     values.Get("cost"),
+		Quantity: values.Get("quantity"),
+	}
+
+	return filter
+}
+
+func parseFilter(qp queryParams) (productbus.QueryFilter, error) {
 	var filter productbus.QueryFilter
 
 	if qp.ID != "" {
@@ -20,7 +38,7 @@ func parseFilter(qp QueryParams) (productbus.QueryFilter, error) {
 	}
 
 	if qp.Name != "" {
-		name, err := productbus.ParseName(qp.Name)
+		name, err := name.Parse(qp.Name)
 		if err != nil {
 			return productbus.QueryFilter{}, errs.NewFieldsError("name", err)
 		}

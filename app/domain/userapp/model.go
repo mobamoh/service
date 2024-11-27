@@ -8,10 +8,11 @@ import (
 
 	"github.com/ardanlabs/service/app/sdk/errs"
 	"github.com/ardanlabs/service/business/domain/userbus"
+	"github.com/ardanlabs/service/business/types/name"
+	"github.com/ardanlabs/service/business/types/role"
 )
 
-// QueryParams represents the set of possible query strings.
-type QueryParams struct {
+type queryParams struct {
 	Page             string
 	Rows             string
 	OrderBy          string
@@ -48,9 +49,9 @@ func toAppUser(bus userbus.User) User {
 		ID:           bus.ID.String(),
 		Name:         bus.Name.String(),
 		Email:        bus.Email.Address,
-		Roles:        userbus.ParseRolesToString(bus.Roles),
+		Roles:        role.ParseToString(bus.Roles),
 		PasswordHash: bus.PasswordHash,
-		Department:   bus.Department,
+		Department:   bus.Department.String(),
 		Enabled:      bus.Enabled,
 		DateCreated:  bus.DateCreated.Format(time.RFC3339),
 		DateUpdated:  bus.DateUpdated.Format(time.RFC3339),
@@ -80,7 +81,7 @@ type NewUser struct {
 
 // Decode implements the decoder interface.
 func (app *NewUser) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // Validate checks the data in the model is considered clean.
@@ -93,7 +94,7 @@ func (app NewUser) Validate() error {
 }
 
 func toBusNewUser(app NewUser) (userbus.NewUser, error) {
-	roles, err := userbus.ParseRoles(app.Roles)
+	roles, err := role.ParseMany(app.Roles)
 	if err != nil {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
@@ -103,16 +104,21 @@ func toBusNewUser(app NewUser) (userbus.NewUser, error) {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
 
-	name, err := userbus.ParseName(app.Name)
+	nme, err := name.Parse(app.Name)
+	if err != nil {
+		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
+	}
+
+	department, err := name.ParseNull(app.Department)
 	if err != nil {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
 
 	bus := userbus.NewUser{
-		Name:       name,
+		Name:       nme,
 		Email:      *addr,
 		Roles:      roles,
-		Department: app.Department,
+		Department: department,
 		Password:   app.Password,
 	}
 
@@ -128,7 +134,7 @@ type UpdateUserRole struct {
 
 // Decode implements the decoder interface.
 func (app *UpdateUserRole) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // Validate checks the data in the model is considered clean.
@@ -141,10 +147,10 @@ func (app UpdateUserRole) Validate() error {
 }
 
 func toBusUpdateUserRole(app UpdateUserRole) (userbus.UpdateUser, error) {
-	var roles []userbus.Role
+	var roles []role.Role
 	if app.Roles != nil {
 		var err error
-		roles, err = userbus.ParseRoles(app.Roles)
+		roles, err = role.ParseMany(app.Roles)
 		if err != nil {
 			return userbus.UpdateUser{}, fmt.Errorf("parse: %w", err)
 		}
@@ -171,7 +177,7 @@ type UpdateUser struct {
 
 // Decode implements the decoder interface.
 func (app *UpdateUser) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // Validate checks the data in the model is considered clean.
@@ -193,19 +199,28 @@ func toBusUpdateUser(app UpdateUser) (userbus.UpdateUser, error) {
 		}
 	}
 
-	var name *userbus.Name
+	var nme *name.Name
 	if app.Name != nil {
-		nm, err := userbus.ParseName(*app.Name)
+		nm, err := name.Parse(*app.Name)
 		if err != nil {
 			return userbus.UpdateUser{}, fmt.Errorf("parse: %w", err)
 		}
-		name = &nm
+		nme = &nm
+	}
+
+	var department *name.Null
+	if app.Department != nil {
+		dep, err := name.ParseNull(*app.Department)
+		if err != nil {
+			return userbus.UpdateUser{}, fmt.Errorf("parse: %w", err)
+		}
+		department = &dep
 	}
 
 	bus := userbus.UpdateUser{
-		Name:       name,
+		Name:       nme,
 		Email:      addr,
-		Department: app.Department,
+		Department: department,
 		Password:   app.Password,
 		Enabled:    app.Enabled,
 	}

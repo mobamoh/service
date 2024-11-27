@@ -9,6 +9,10 @@ import (
 	"github.com/ardanlabs/service/app/sdk/errs"
 	"github.com/ardanlabs/service/business/domain/productbus"
 	"github.com/ardanlabs/service/business/domain/userbus"
+	"github.com/ardanlabs/service/business/types/money"
+	"github.com/ardanlabs/service/business/types/name"
+	"github.com/ardanlabs/service/business/types/quantity"
+	"github.com/ardanlabs/service/business/types/role"
 )
 
 // Product represents an individual product.
@@ -33,8 +37,8 @@ func toAppProduct(prd productbus.Product) Product {
 		ID:          prd.ID.String(),
 		UserID:      prd.UserID.String(),
 		Name:        prd.Name.String(),
-		Cost:        prd.Cost,
-		Quantity:    prd.Quantity,
+		Cost:        prd.Cost.Value(),
+		Quantity:    prd.Quantity.Value(),
 		DateCreated: prd.DateCreated.Format(time.RFC3339),
 		DateUpdated: prd.DateUpdated.Format(time.RFC3339),
 	}
@@ -60,7 +64,7 @@ func (app NewTran) Validate() error {
 
 // Decode implements the decoder interface.
 func (app *NewTran) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // =============================================================================
@@ -85,7 +89,7 @@ func (app NewUser) Validate() error {
 }
 
 func toBusNewUser(app NewUser) (userbus.NewUser, error) {
-	roles, err := userbus.ParseRoles(app.Roles)
+	roles, err := role.ParseMany(app.Roles)
 	if err != nil {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
@@ -95,16 +99,21 @@ func toBusNewUser(app NewUser) (userbus.NewUser, error) {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
 
-	name, err := userbus.ParseName(app.Name)
+	nme, err := name.Parse(app.Name)
+	if err != nil {
+		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
+	}
+
+	department, err := name.ParseNull(app.Department)
 	if err != nil {
 		return userbus.NewUser{}, fmt.Errorf("parse: %w", err)
 	}
 
 	bus := userbus.NewUser{
-		Name:       name,
+		Name:       nme,
 		Email:      *addr,
 		Roles:      roles,
-		Department: app.Department,
+		Department: department,
 		Password:   app.Password,
 	}
 
@@ -130,15 +139,25 @@ func (app NewProduct) Validate() error {
 }
 
 func toBusNewProduct(app NewProduct) (productbus.NewProduct, error) {
-	name, err := productbus.ParseName(app.Name)
+	name, err := name.Parse(app.Name)
 	if err != nil {
 		return productbus.NewProduct{}, fmt.Errorf("parse: %w", err)
 	}
 
+	cost, err := money.Parse(app.Cost)
+	if err != nil {
+		return productbus.NewProduct{}, fmt.Errorf("parse cost: %w", err)
+	}
+
+	quantity, err := quantity.Parse(app.Quantity)
+	if err != nil {
+		return productbus.NewProduct{}, fmt.Errorf("parse quantity: %w", err)
+	}
+
 	bus := productbus.NewProduct{
 		Name:     name,
-		Cost:     app.Cost,
-		Quantity: app.Quantity,
+		Cost:     cost,
+		Quantity: quantity,
 	}
 
 	return bus, nil

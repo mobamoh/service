@@ -9,10 +9,10 @@ import (
 	"github.com/ardanlabs/service/app/sdk/errs"
 	"github.com/ardanlabs/service/app/sdk/mid"
 	"github.com/ardanlabs/service/business/domain/homebus"
+	"github.com/ardanlabs/service/business/types/hometype"
 )
 
-// QueryParams represents the set of possible query strings.
-type QueryParams struct {
+type queryParams struct {
 	Page             string
 	Rows             string
 	OrderBy          string
@@ -98,7 +98,7 @@ type NewHome struct {
 
 // Decode implements the decoder interface.
 func (app *NewHome) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // Validate checks if the data in the model is considered clean.
@@ -116,7 +116,7 @@ func toBusNewHome(ctx context.Context, app NewHome) (homebus.NewHome, error) {
 		return homebus.NewHome{}, fmt.Errorf("getuserid: %w", err)
 	}
 
-	typ, err := homebus.ParseType(app.Type)
+	typ, err := hometype.Parse(app.Type)
 	if err != nil {
 		return homebus.NewHome{}, fmt.Errorf("parse: %w", err)
 	}
@@ -157,7 +157,7 @@ type UpdateHome struct {
 
 // Decode implements the decoder interface.
 func (app *UpdateHome) Decode(data []byte) error {
-	return json.Unmarshal(data, &app)
+	return json.Unmarshal(data, app)
 }
 
 // Validate checks the data in the model is considered clean.
@@ -170,17 +170,17 @@ func (app UpdateHome) Validate() error {
 }
 
 func toBusUpdateHome(app UpdateHome) (homebus.UpdateHome, error) {
-	var typ homebus.Type
+	var t hometype.HomeType
 	if app.Type != nil {
 		var err error
-		typ, err = homebus.ParseType(*app.Type)
+		t, err = hometype.Parse(*app.Type)
 		if err != nil {
 			return homebus.UpdateHome{}, fmt.Errorf("parse: %w", err)
 		}
 	}
 
 	bus := homebus.UpdateHome{
-		Type: &typ,
+		Type: &t,
 	}
 
 	if app.Address != nil {
